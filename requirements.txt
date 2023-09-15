@@ -1,0 +1,10 @@
+tiffile
+numpy
+keras
+matplotlib
+ipykernel
+notebook
+tensorflow
+tensorflow_datasets
+tenroflow-hub
+tensorflow_addons
