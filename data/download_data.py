@@ -34,14 +34,12 @@ def sample_landcover(feat):
     sample_geom = sample_roi.stratifiedSample(10, seed=1, geometries=True)
     return sample_geom
 print("generating samples...")
-#reqs = roi.map(sample_landcover).flatten()
-print("done")
-print("getting geom")
+
 reqs_list = []
 for i in range(num_regions):
     reqs_list.append(sample_landcover(ee.Feature(roi_list.get(i))).aggregate_array('.geo').getInfo())
     print(f"done with {i+1} of {num_regions}")
-
+print("done with all regions")
 #reqs=sample_landcover(roi.first()) # for testing
 
 #reqs = reqs.getInfo()
