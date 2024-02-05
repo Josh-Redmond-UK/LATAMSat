@@ -9,3 +9,4 @@ tensorflow_datasets
 tenroflow-hub
 tensorflow_addons
 cleanlab
+earthengine-api
