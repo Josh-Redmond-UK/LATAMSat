@@ -7,7 +7,7 @@ classDictionary = {30: 'Herbaceous Vegetation',
 20: 'Shrubs',
 40: 'Agricultural Land',
 50: 'Urban Areas',
-60: 'Bare Earth Sparse Vegetation',
+60: 'Bare Earth and Sparse Vegetation',
 70: 'Snow and Ice',
 80: 'Permanent Water Bodies',
 90: 'Herbaceous Wetland',
@@ -69,21 +69,25 @@ def get_tiff_dataset_from_folder(top_level_path):
 def load_tiff_image(file_path):
     image = tf.io.read_file(file_path)
     image = tf.image.decode_tiff(image, index=0, name=None)
-    image = tf.cast(image, tf.float32) / 65535.0  # Normalize to [0, 1]
+    image = tf.clip_by_value(tf.cast(image, tf.float32) / tf.maximum(image), 0, 1)  # Normalize to [0, 1]
 
-    return image, get_lulc_class(file_path)
+    return image
 
 
-def get_rgb_dataset(top_level_path, shuffle_size="full"):
-    file_pattern = top_level_path + '*/*/*.png'
+def get_dataset(file_pattern, mode="rgb", shuffle_size="full"):
     file_paths = glob.glob(file_pattern)
     labels = list(map(get_lulc_class, file_paths))
-    print("Got labels - creating dataset")
+
+
     dataset = tf.data.Dataset.from_tensor_slices((file_paths,labels))
     if shuffle_size == "full":
         shuffle_size = dataset.cardinality()
-    dataset = dataset.map(load_rgb_image).shuffle(buffer_size=shuffle_size).batch(32)
-    #dataset = dataset.map(load_rgb_image)
+
+    if mode == "rgb":
+        dataset = dataset.map(load_rgb_image).shuffle(buffer_size=shuffle_size).batch(32)
+    else:
+        dataset = dataset.map(load_tiff_image).shuffle(buffer_size=shuffle_size).batch(32)
+
     
     return dataset
 
