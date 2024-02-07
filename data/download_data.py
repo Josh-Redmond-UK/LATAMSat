@@ -28,10 +28,6 @@ print(ecoRegList    )
 reduced_res = reduced_res.clip(roi)
 print("got roi")
 
-print("converting to list")
-num_regions = roi.size().getInfo()
-roi_list = ee.List(roi.toList(num_regions))
-
 def sample_landcover(feat):
     sample_roi = reduced_res.clip(feat.geometry())
     sample_geom = sample_roi.stratifiedSample(10, seed=1, scale=640, region=feat, geometries=True)
@@ -50,12 +46,9 @@ for idx, name in enumerate(ecoRegList):
     except:
         failed.append(name)
         print(f"failed with {name}")
+        
 print("done with all regions")
-#reqs=sample_landcover(roi.first()) # for testing
-
-#reqs = reqs.getInfo()
 print("done, saving...")
 pickle.dump(reqs_list, open('roi_samples_list.pkl', 'wb'))
 pickle.dump(failed, open('failed_areas.pkl', 'wb'))
 print("done!")
-#print(reqs)
