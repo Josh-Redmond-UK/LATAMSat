@@ -10,18 +10,21 @@ ee.Initialize(opt_url='https://earthengine-highvolume.googleapis.com')
 
 
 print("setting up")
-dataset = ee.ImageCollection('ESA/WorldCover/v200').first()
+dataset = ee.Image("COPERNICUS/Landcover/100m/Proba-V-C3/Global/2019").select('discrete_classification')#ee.ImageCollection('ESA/WorldCover/v200').first()
 ecoregions = ee.FeatureCollection("projects/data-sunlight-311713/assets/wwf_terr_ecos")
 
 
-reduced_res = dataset.reduceResolution(ee.Reducer.mode(), True, 4096).reproject(dataset.projection().atScale(640))
+reduced_res = dataset.reduceResolution(ee.Reducer.mode(), True, 41).reproject(dataset.projection().atScale(640))
 
 latam_filter = ee.Filter.Or(ee.Filter.eq("wld_rgn", "South America"), ee.Filter.eq("wld_rgn", "Central America"), ee.Filter.eq("country_na", "Mexico"))
 latin_america = ee.FeatureCollection("USDOS/LSIB_SIMPLE/2017").filter(latam_filter)
 l2_areas = ee.FeatureCollection("FAO/GAUL/2015/level2").filterBounds(latin_america)
+s2SamplingGrid = ee.FeatureCollection('projects/data-sunlight-311713/assets/sentinel_2_index_shapefile').map(lambda x: x.buffer(-320))
 
 roi = ecoregions.filterBounds(latin_america)
-
+print("getting ecoregion names")
+ecoRegList = list(set(list(roi.aggregate_array("ECO_NAME").getInfo())))
+print(ecoRegList    )
 reduced_res = reduced_res.clip(roi)
 print("got roi")
 
@@ -31,19 +34,28 @@ roi_list = ee.List(roi.toList(num_regions))
 
 def sample_landcover(feat):
     sample_roi = reduced_res.clip(feat.geometry())
-    sample_geom = sample_roi.stratifiedSample(10, seed=1, geometries=True)
+    sample_geom = sample_roi.stratifiedSample(10, seed=1, scale=640, region=feat, geometries=True)
     return sample_geom
 print("generating samples...")
 
 reqs_list = []
-for i in range(num_regions):
-    reqs_list.append(sample_landcover(ee.Feature(roi_list.get(i))).aggregate_array('.geo').getInfo())
-    print(f"done with {i+1} of {num_regions}")
+failed = []
+for idx, name in enumerate(ecoRegList):
+    try:
+        print(f"starting {name}")
+        _r = roi.filterMetadata("ECO_NAME", "equals", name).map(lambda x: x.buffer(100)).geometry()
+        sample = s2SamplingGrid.filterBounds(_r).map(lambda x: x.intersection(_r))
+        reqs_list.append(sample_landcover(sample).aggregate_array('.geo').getInfo())
+        print(f"done with {idx+1} of {len(ecoRegList)}")
+    except:
+        failed.append(name)
+        print(f"failed with {name}")
 print("done with all regions")
 #reqs=sample_landcover(roi.first()) # for testing
 
 #reqs = reqs.getInfo()
 print("done, saving...")
 pickle.dump(reqs_list, open('roi_samples_list.pkl', 'wb'))
+pickle.dump(failed, open('failed_areas.pkl', 'wb'))
 print("done!")
 #print(reqs)
