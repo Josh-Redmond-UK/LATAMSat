@@ -1,7 +1,11 @@
 
 import numpy as np
 import tensorflow as tf
+import sklearn.model_selection
+import random
 import glob
+import matplotlib.pyplot as plt
+import tiffile as tiff
 
 classDictionary = {30: 'Herbaceous Vegetation',
 20: 'Shrubs',
@@ -27,11 +31,18 @@ classDictionary = {30: 'Herbaceous Vegetation',
 200: 'Oceans, Seas'}
 
 encoding_dictionary = dict(zip(classDictionary.values(), [i for i in range(len(classDictionary.keys()))]))
+encoding_dictionary_ms = dict(zip(classDictionary.keys(), [i for i in range(len(classDictionary.keys()))]))
+reverse_encoding_dictionary = dict(zip(list(encoding_dictionary.values()), list(encoding_dictionary.keys())))
 
+print(encoding_dictionary)
 
 def get_lulc_class(path):
     splits = path.split('/')
-    return encoding_dictionary[splits[-2]]#tf.one_hot(encoding_dictionary[splits[-2]], len(encoding_dictionary.keys()))
+    try:
+        return encoding_dictionary[splits[-2]]#tf.one_hot(encoding_dictionary[splits[-2]], len(encoding_dictionary.keys()))
+    except:
+        return encoding_dictionary_ms[int(splits[-2])]#tf.one_hot(encoding_dictionary[splits[-2]], len(encoding_dictionary.keys()))
+
 
 def multispectral_to_rgb_linear(raster, optical_maximum = 2000):
 
@@ -66,36 +77,89 @@ def get_tiff_dataset_from_folder(top_level_path):
 
     return dataset
 
-def load_tiff_image(file_path):
-    image = tf.io.read_file(file_path)
-    image = tf.image.decode_tiff(image, index=0, name=None)
+def load_tiff_image(file_path, label):
+    print("loading tiff")
+    image = tiff.imread(file_path)
+    print("converting to tensor")
+    image = tf.convert_to_tensor(image)
+    #image.set_shape([64, 64, 12])
+    print("rescaling")
     image = tf.clip_by_value(tf.cast(image, tf.float32) / tf.maximum(image), 0, 1)  # Normalize to [0, 1]
 
-    return image
+    return image, label
 
 
-def get_dataset(file_pattern, mode="rgb", shuffle_size="full"):
+def get_dataset(file_pattern, mode="rgb", shuffle=True, test_size=0.2):
     file_paths = glob.glob(file_pattern)
-    labels = list(map(get_lulc_class, file_paths))
+
+    if shuffle:
+        random.shuffle(file_paths)
 
 
-    dataset = tf.data.Dataset.from_tensor_slices((file_paths,labels))
-    if shuffle_size == "full":
-        shuffle_size = dataset.cardinality()
+    train_paths, test_paths = sklearn.model_selection.train_test_split(file_paths, test_size=test_size, shuffle=False)
+
+    train_labels = list(map(get_lulc_class, train_paths))
+    test_labels = list(map(get_lulc_class, test_paths))
+    print("Verifying paths and labels")
+    print(train_paths[:15])
+    print(train_labels[:15])
+    print(train_paths[-15:])
+    print(train_labels[-15:])
+
+    train_dataset = tf.data.Dataset.from_tensor_slices((train_paths,train_labels))
+    test_dataset = tf.data.Dataset.from_tensor_slices((test_paths,test_labels))
+
+
+#    if shuffle_size == "full":
+#        shuffle_size = dataset.cardinality()
 
     if mode == "rgb":
-        dataset = dataset.map(load_rgb_image).shuffle(buffer_size=shuffle_size).batch(32)
+        train_dataset = train_dataset.map(load_rgb_image).batch(32)
+        test_dataset = test_dataset.map(load_rgb_image).batch(32)
+
     else:
-        dataset = dataset.map(load_tiff_image).shuffle(buffer_size=shuffle_size).batch(32)
+        train_dataset = train_dataset.map(lambda x, y: tf.py_function(load_tiff_image, [x,y], [tf.float32, tf.string])).batch(32)
+        test_dataset = test_dataset.map(lambda x, y: tf.py_function(load_tiff_image, [x,y], [tf.float32, tf.string])).batch(32)
 
     
-    return dataset
+    return train_dataset, test_dataset
 
 def load_rgb_image(file_path, label):
-    #file_path, label = tensor
+    print(file_path, label)    
     image = tf.io.read_file(file_path)
     image = tf.image.decode_png(image, channels=3)
     image.set_shape([64, 64, 3])
     image = tf.cast(image, tf.float32) / 255 # Normalize to [0, 1]
     return image, label
 
+def show_batch(batch):
+  plt.figure(figsize=(16, 16))
+  for n in range(min(32, 16)):
+      ax = plt.subplot(32//8, 8, n + 1)
+      # show the image
+      plt.imshow(batch[0][n])
+      # and put the corresponding label as title upper to the image
+      plt.title(reverse_encoding_dictionary[batch[1][n].numpy()])
+      plt.axis('off')
+    
+  plt.savefig("sample-images.png")
+  plt.close()
+
+
+def plot_training(history, dir=""):
+    plt.plot(history.history['accuracy'])
+    plt.plot(history.history['val_accuracy'])
+    plt.title('model accuracy')
+    plt.ylabel('accuracy')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'val'], loc='upper left')
+    plt.savefig(dir+"accuracy.png")
+    plt.close()
+
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    plt.title('training loss')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'val'], loc='upper left')
+    plt.savefig(dir+"loss.png")

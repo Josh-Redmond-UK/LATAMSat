@@ -30,7 +30,7 @@ print("got roi")
 
 def sample_landcover(feat):
     sample_roi = reduced_res.clip(feat.geometry())
-    sample_geom = sample_roi.stratifiedSample(10, seed=1, scale=640, region=feat, geometries=True)
+    sample_geom = sample_roi.stratifiedSample(1000, seed=1, scale=640, region=feat, geometries=True)
     return sample_geom
 print("generating samples...")
 
@@ -46,7 +46,7 @@ for idx, name in enumerate(ecoRegList):
     except:
         failed.append(name)
         print(f"failed with {name}")
-        
+
 print("done with all regions")
 print("done, saving...")
 pickle.dump(reqs_list, open('roi_samples_list.pkl', 'wb'))

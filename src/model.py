@@ -1,5 +1,7 @@
 
 import tensorflow as tf
+import tensorflow_hub as hub
+
 def make_model(input_shape, num_classes):
     inputs = tf.keras.Input(shape=input_shape)
 
@@ -45,3 +47,10 @@ def make_model(input_shape, num_classes):
     outputs = tf.keras.layers.Dense(units, activation=activation)(x)
     return tf.keras.Model(inputs, outputs)
 
+
+def get_efficient_net(input_shape, num_classes):
+    m = tf.keras.Sequential([
+    hub.KerasLayer("https://www.kaggle.com/models/tensorflow/efficientnet/frameworks/TensorFlow2/variations/b0-classification/versions/1"),
+    tf.keras.layers.Dense(num_classes, activation='softmax')])
+    m.build([None, input_shape[0], input_shape[1], input_shape[2]])  # Batch input shape.
+    return m 
