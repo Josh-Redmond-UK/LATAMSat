@@ -12,7 +12,7 @@ mode = "rgb"
 if mode == "rgb":
     image_shape=(64,64,3)
     model_path = f"models/rgb_model/{datetime.datetime.now().strftime('%Y%m%d-%H%M')}"
-    dataset_glob_pattern = 'latamSatData/datasetRGB_relabel/**/**/*.png'
+    dataset_glob_pattern = 'latamSatData/datasetRGB_rescaled/**/**/*.png'
 
 else:
     image_shape = (64,64,12)
@@ -28,10 +28,20 @@ model = get_efficient_net(input_shape=image_shape, num_classes=num_classes)
 model_callback = tf.keras.callbacks.ModelCheckpoint(
     filepath=model_path,
     save_weights_only=False,
-    monitor="val_accuracy",
+    monitor="val_loss",
     mode="max",
     save_best_only=True,
 )
+
+early_stopping = tf.keras.callbacks.EarlyStopping(
+    monitor="val_loss",
+    patience=5,
+    mode="min",
+    min_delta=0.001
+
+
+)
+
 
 model.compile(
     optimizer="adam",
@@ -45,7 +55,7 @@ train_batch_ = next(iter(train))
 #print(train_batch_)
 show_batch(train_batch_)
 
-history = model.fit(train, validation_data=test, epochs=50, verbose=1, callbacks=[model_callback])
+history = model.fit(train, validation_data=test, epochs=80, verbose=1, callbacks=[model_callback])
 
 plot_training(history, model_path+'/')
 

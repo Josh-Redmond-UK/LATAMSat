@@ -5,8 +5,9 @@ matplotlib
 ipykernel
 notebook
 tensorflow
+tensorflow-metal
 tensorflow_datasets
-tenroflow-hub
+tenroflow_hub
 tensorflow_addons
 cleanlab
 earthengine-api
